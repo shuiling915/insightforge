@@ -164,6 +164,7 @@ class AgentEvent(BaseModel):
     type: EventType
     timestamp: datetime = Field(default_factory=datetime.now)
     run_id: str = ""
+    session_id: str = ""
     round_num: int = 0
     message: Optional[str] = None
     data: Dict[str, Any] = Field(default_factory=dict)

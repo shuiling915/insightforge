@@ -62,6 +62,7 @@ class DataAnalysisAgent:
         self.round_num = 0
         self.answer: Optional[str] = None
         self.run_id = uuid.uuid4().hex
+        self.session_id = ""
         self._token_estimate = 0
         self._cancelled = False
 
@@ -223,6 +224,7 @@ class DataAnalysisAgent:
         event = AgentEvent(
             type=event_type,
             run_id=self.run_id,
+            session_id=self.session_id,
             round_num=self.round_num,
             message=message,
             **kwargs,

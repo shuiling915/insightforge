@@ -22,6 +22,7 @@ from typing import Deque, Dict, Optional
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import generate_latest
 from pydantic import BaseModel
 
@@ -135,28 +136,6 @@ def get_settings_dep() -> Settings:
     return get_settings()
 
 
-def verify_api_key(
-    x_api_key: str | None = Header(default=None),
-    settings: Settings = Depends(get_settings_dep),
-) -> str:
-    if not settings.api_key:
-        return "anonymous"
-    if x_api_key != settings.api_key:
-        raise HTTPException(status_code=401, detail="Invalid or missing API key")
-    return x_api_key or "anonymous"
-
-
-def check_rate_limit(
-    request: Request,
-    api_key: str = Depends(verify_api_key),
-    settings: Settings = Depends(get_settings_dep),
-) -> None:
-    limiter: RateLimiter = request.app.state.rate_limiter
-    key = api_key
-    if not limiter.check(key):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-
-
 def get_current_user(
     request: Request,
     authorization: Optional[str] = Header(default=None),
@@ -209,12 +188,29 @@ def require_analyst(user: Optional[User] = Depends(get_current_user)) -> Optiona
     return user
 
 
+def check_rate_limit(
+    request: Request,
+    user: Optional[User] = Depends(get_current_user),
+    settings: Settings = Depends(get_settings_dep),
+) -> None:
+    limiter: RateLimiter = request.app.state.rate_limiter
+    if user is not None:
+        key = f"user:{user.id}"
+    else:
+        key = request.client.host if request.client else "anonymous"
+    if not limiter.check(key):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 
 @app.get("/")
 def index():
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/health")
@@ -484,6 +480,7 @@ def stream_run(
         )
         # Override run_id so replay and live events share the same ID
         agent.run_id = run_id
+        agent.session_id = effective_session
         registry.register(run_id, agent, cancel_event)
 
         last_emit = time.time()
@@ -551,16 +548,38 @@ def stream_run(
 def list_sessions(request: Request):
     session_manager: SessionManager = request.app.state.session_manager
     sessions = session_manager.store.list_sessions()
+    sessions = sorted(sessions, key=lambda s: s.updated_at if hasattr(s, 'updated_at') else 0, reverse=True)
+    result = []
+    for s in sessions:
+        user_msgs = [m for m in s.messages if m.get("role") == "user"]
+        title = user_msgs[0]["content"] if user_msgs else (s.messages[0]["content"] if s.messages else "新会话")
+        if len(title) > 50:
+            title = title[:50] + "..."
+        result.append({
+            "id": s.session_id,
+            "session_id": s.session_id,
+            "title": title,
+            "created_at": s.created_at.isoformat() if hasattr(s.created_at, 'isoformat') else str(s.created_at),
+            "updated_at": s.updated_at.isoformat() if hasattr(s.updated_at, 'isoformat') else str(s.updated_at),
+            "message_count": len(s.messages),
+            "event_count": len(s.messages),
+        })
+    return result
+
+
+@app.get("/sessions/{session_id}")
+def get_session(session_id: str, request: Request):
+    session_manager: SessionManager = request.app.state.session_manager
+    store = session_manager.store
+    events = store.get_events_by_session(session_id)
+    event_list = []
+    for e in events:
+        d = e.model_dump(mode="json", exclude_none=True)
+        d["type"] = e.type.value if hasattr(e.type, 'value') else str(e.type)
+        event_list.append(d)
     return {
-        "sessions": [
-            {
-                "session_id": s.session_id,
-                "created_at": s.created_at,
-                "updated_at": s.updated_at,
-                "message_count": len(s.messages),
-            }
-            for s in sessions
-        ]
+        "session_id": session_id,
+        "events": event_list,
     }
 
 

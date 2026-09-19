@@ -68,6 +68,7 @@ class SQLiteSessionStore(SessionStoreBackend):
                 """
                 CREATE TABLE IF NOT EXISTS run_events (
                     run_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL DEFAULT '',
                     seq INTEGER NOT NULL,
                     type TEXT NOT NULL,
                     data TEXT NOT NULL,
@@ -78,6 +79,13 @@ class SQLiteSessionStore(SessionStoreBackend):
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_run_events_run_id ON run_events(run_id)"
+            )
+            try:
+                conn.execute("ALTER TABLE run_events ADD COLUMN session_id TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_run_events_session_id ON run_events(session_id)"
             )
             conn.commit()
 
@@ -137,11 +145,12 @@ class SQLiteSessionStore(SessionStoreBackend):
         with self._lock, self._connect() as conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO run_events (run_id, seq, type, data, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO run_events (run_id, session_id, seq, type, data, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.run_id,
+                    event.session_id,
                     event.seq,
                     event.type.value,
                     data,
@@ -155,5 +164,13 @@ class SQLiteSessionStore(SessionStoreBackend):
             rows = conn.execute(
                 "SELECT data FROM run_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC",
                 (run_id, since_seq),
+            ).fetchall()
+        return [AgentEvent.model_validate_json(r[0]) for r in rows]
+
+    def get_events_by_session(self, session_id: str) -> List[AgentEvent]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                "SELECT data FROM run_events WHERE session_id = ? ORDER BY created_at ASC, seq ASC",
+                (session_id,),
             ).fetchall()
         return [AgentEvent.model_validate_json(r[0]) for r in rows]
