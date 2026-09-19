@@ -1,0 +1,35 @@
+# Sandbox image for InsightForge code execution.
+# This image runs inside Docker containers spawned per session.
+# It includes common data science libraries and has NO network access at runtime.
+
+FROM python:3.11-slim
+
+WORKDIR /workspace
+
+# Install system dependencies for data science
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python data science stack
+RUN pip install --no-cache-dir \
+    numpy \
+    pandas \
+    scipy \
+    scikit-learn \
+    matplotlib \
+    seaborn \
+    plotly \
+    statsmodels \
+    jupyter-client \
+    ipykernel
+
+# Install IPython kernel
+RUN python -m ipykernel install --name python3 --user
+
+# Create a non-root user for running code
+RUN useradd -m -u 1000 sandbox
+USER sandbox
+
+CMD ["python", "-c", "print('ready')"]

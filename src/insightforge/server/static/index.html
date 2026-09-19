@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InsightForge - 企业级数据分析 Agent</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: #1e293b;
+    padding: 14px 24px;
+    border-bottom: 1px solid #334155;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #38bdf8;
+  }
+  header .badge {
+    background: #0ea5e9;
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+  header .status {
+    margin-left: auto;
+    font-size: 13px;
+    color: #94a3b8;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  .sidebar {
+    width: 280px;
+    background: #1e293b;
+    border-right: 1px solid #334155;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar h3 {
+    padding: 16px;
+    font-size: 13px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .session-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 8px;
+  }
+  .session-item {
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 4px;
+    transition: background 0.15s;
+  }
+  .session-item:hover { background: #334155; }
+  .session-item.active { background: #334155; }
+  .session-item .title {
+    font-size: 13px;
+    color: #e2e8f0;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .session-item .meta {
+    font-size: 11px;
+    color: #64748b;
+  }
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .events {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .event {
+    margin-bottom: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #1e293b;
+    border-left: 3px solid #475569;
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .event.thinking { border-left-color: #a78bfa; }
+  .event.code { border-left-color: #f59e0b; }
+  .event.success { border-left-color: #22c55e; }
+  .event.failed { border-left-color: #ef4444; }
+  .event.answer { border-left-color: #38bdf8; background: #0c4a6e; }
+  .event.plan { border-left-color: #ec4899; }
+  .event.system { border-left-color: #64748b; opacity: 0.7; }
+  .event-header {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .event-body { font-size: 14px; line-height: 1.6; }
+  .event-body pre {
+    background: #0f172a;
+    padding: 10px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 13px;
+    margin-top: 6px;
+    border: 1px solid #334155;
+  }
+  .event-body code {
+    background: #0f172a;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .plan-checklist { list-style: none; margin-top: 6px; }
+  .plan-checklist li {
+    padding: 3px 0;
+    font-size: 13px;
+  }
+  .plan-checklist li.done { color: #22c55e; text-decoration: line-through; }
+  .input-area {
+    padding: 16px 20px;
+    background: #1e293b;
+    border-top: 1px solid #334155;
+  }
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  textarea {
+    flex: 1;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: #e2e8f0;
+    font-size: 14px;
+    resize: none;
+    min-height: 50px;
+    max-height: 150px;
+    font-family: inherit;
+    line-height: 1.5;
+  }
+  textarea:focus {
+    outline: none;
+    border-color: #0ea5e9;
+  }
+  button {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-send {
+    background: #0ea5e9;
+    color: white;
+  }
+  .btn-send:hover { background: #0284c7; }
+  .btn-send:disabled {
+    background: #475569;
+    cursor: not-allowed;
+  }
+  .btn-cancel {
+    background: #ef4444;
+    color: white;
+  }
+  .btn-cancel:hover { background: #dc2626; }
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #64748b;
+  }
+  .empty-state svg { margin-bottom: 16px; opacity: 0.5; }
+  .empty-state p { font-size: 15px; margin-bottom: 4px; }
+  .empty-state .hint { font-size: 13px; }
+  .examples {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .example-chip {
+    padding: 6px 12px;
+    background: #334155;
+    border-radius: 16px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .example-chip:hover { background: #475569; }
+  .loading {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid #475569;
+    border-top-color: #0ea5e9;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .token-badge {
+    display: inline-block;
+    background: #1e293b;
+    color: #94a3b8;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    margin-left: 8px;
+  }
+  .scrollbar::-webkit-scrollbar { width: 6px; }
+  .scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+  }
+  .login-box {
+    background: #1e293b; padding: 32px; border-radius: 12px;
+    width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .login-input {
+    width: 100%; padding: 10px 12px; margin-bottom: 12px;
+    background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+    color: #e2e8f0; font-size: 14px;
+  }
+  .login-input:focus { outline: none; border-color: #38bdf8; }
+  .btn-secondary {
+    padding: 6px 14px; background: #334155; color: #e2e8f0;
+    border: none; border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .btn-secondary:hover { background: #475569; }
+  .role-badge {
+    padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500;
+  }
+  .role-admin { background: #ef4444; color: white; }
+  .role-analyst { background: #3b82f6; color: white; }
+  .role-viewer { background: #64748b; color: white; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>InsightForge</h1>
+  <span class="badge">v1.0</span>
+  <span class="status"><span class="status-dot"></span>就绪</span>
+  <div id="userInfo" style="margin-left:auto; display:flex; align-items:center; gap:12px;">
+    <span id="userBadge" style="display:none; font-size:13px; color:#94a3b8;"></span>
+    <button id="adminBtn" style="display:none;" onclick="openAdminPanel()" class="btn-secondary">用户管理</button>
+    <button id="chgPwBtn" style="display:none;" onclick="openChangePassword(false)" class="btn-secondary">修改密码</button>
+    <button id="logoutBtn" style="display:none;" onclick="logout()" class="btn-secondary">退出</button>
+    <button id="loginBtn" onclick="openLogin()" class="btn-send">登录</button>
+  </div>
+</header>
+
+<!-- Login overlay -->
+<div id="loginOverlay" class="overlay" style="display:none;">
+  <div class="login-box">
+    <h2 style="margin-bottom:20px; color:#38bdf8;">登录 InsightForge</h2>
+    <input id="loginUser" type="text" placeholder="用户名" class="login-input" autocomplete="username">
+    <input id="loginPass" type="password" placeholder="密码" class="login-input" autocomplete="current-password">
+    <div id="loginError" style="color:#ef4444; font-size:13px; margin:8px 0; min-height:18px;"></div>
+    <button onclick="doLogin()" class="btn-send" style="width:100%;">登录</button>
+    <p style="margin-top:12px; font-size:12px; color:#64748b; text-align:center;">默认管理员: admin / admin123</p>
+  </div>
+</div>
+
+<!-- Change password overlay -->
+<div id="chgPwOverlay" class="overlay" style="display:none;">
+  <div class="login-box">
+    <h2 style="margin-bottom:8px; color:#38bdf8;">修改密码</h2>
+    <p id="chgPwForced" style="display:none; background:#7c2d12; color:#fdba74; padding:8px 12px; border-radius:6px; font-size:13px; margin-bottom:12px;">
+      ⚠️ 首次登录必须修改默认密码后才能继续使用
+    </p>
+    <input id="chgPwOld" type="password" placeholder="当前密码" class="login-input" autocomplete="current-password">
+    <input id="chgPwNew" type="password" placeholder="新密码（至少8位，含大小写字母和数字）" class="login-input" autocomplete="new-password">
+    <input id="chgPwConfirm" type="password" placeholder="确认新密码" class="login-input" autocomplete="new-password">
+    <div id="chgPwError" style="color:#ef4444; font-size:13px; margin:8px 0; min-height:18px;"></div>
+    <button onclick="doChangePassword()" class="btn-send" style="width:100%;">确认修改</button>
+    <button id="chgPwCancel" onclick="closeChangePassword()" class="btn-secondary" style="width:100%; margin-top:8px;">取消</button>
+  </div>
+</div>
+
+<!-- Admin panel overlay -->
+<div id="adminOverlay" class="overlay" style="display:none;">
+  <div class="login-box" style="width:600px; max-height:80vh; overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h2 style="color:#38bdf8;">用户管理</h2>
+      <button onclick="closeAdminPanel()" class="btn-secondary">关闭</button>
+    </div>
+    <div style="margin-bottom:16px; padding:12px; background:#0f172a; border-radius:6px;">
+      <h4 style="margin-bottom:8px; font-size:13px; color:#94a3b8;">创建新用户</h4>
+      <div style="display:flex; gap:8px; margin-bottom:8px;">
+        <input id="newUser" type="text" placeholder="用户名" class="login-input" style="flex:1;">
+        <input id="newPass" type="password" placeholder="密码" class="login-input" style="flex:1;">
+        <select id="newRole" class="login-input" style="flex:0 0 120px;">
+          <option value="analyst">analyst</option>
+          <option value="viewer">viewer</option>
+          <option value="admin">admin</option>
+        </select>
+      </div>
+      <button onclick="createUser()" class="btn-send" style="width:100%;">创建用户</button>
+    </div>
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead>
+        <tr style="text-align:left; color:#94a3b8; border-bottom:1px solid #334155;">
+          <th style="padding:8px;">ID</th>
+          <th style="padding:8px;">用户名</th>
+          <th style="padding:8px;">角色</th>
+          <th style="padding:8px;">状态</th>
+          <th style="padding:8px;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="userTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <h3>会话历史</h3>
+    <div class="session-list scrollbar" id="sessionList">
+      <div style="padding: 12px; color: #64748b; font-size: 13px;">暂无历史会话</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="events scrollbar" id="events">
+      <div class="empty-state">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 3v18h18" stroke-linecap="round"/>
+          <path d="M7 14l4-4 4 4 5-5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p>开始一次数据分析任务</p>
+        <p class="hint">输入你的问题，Agent 将自动编写代码并执行分析</p>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="taskInput" placeholder="描述你想分析的数据任务，例如：查询 ecommerce.db 中销量最高的商品..." rows="2"></textarea>
+        <button id="sendBtn" class="btn-send" onclick="startRun()">发送</button>
+        <button id="cancelBtn" class="btn-cancel" onclick="cancelRun()" style="display:none;">取消</button>
+      </div>
+      <div class="examples">
+        <span class="example-chip" onclick="setExample('查询 ecommerce.db 中有哪些表和字段')">🗄️ 查看数据库结构</span>
+        <span class="example-chip" onclick="setExample('统计 ecommerce.db 中各商品类别的销售额占比，按降序排列')">📊 类别销售额统计</span>
+        <span class="example-chip" onclick="setExample('查询 ecommerce.db 中消费金额最高的前5个客户及其订单数和总金额')">🏆 Top 5 客户</span>
+        <span class="example-chip" onclick="setExample('分析 ecommerce.db 中各城市的订单数量和平均客单价，用柱状图展示')">📍 城市订单分析</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentRunId = null;
+let currentSessionId = null;
+let eventSource = null;
+let isRunning = false;
+let currentUser = null;
+
+const TOKEN_KEY = 'insightforge_token';
+
+const taskInput = document.getElementById('taskInput');
+const sendBtn = document.getElementById('sendBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+const eventsDiv = document.getElementById('events');
+const sessionList = document.getElementById('sessionList');
+
+// ── Auth helpers ────────────────────────────────────────────────────────
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function authHeaders() {
+  const token = getToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(options.headers || {}) },
+  });
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    currentUser = null;
+    updateUserUI();
+    openLogin();
+    throw new Error('未登录或登录已过期');
+  }
+  return res;
+}
+
+function updateUserUI() {
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const adminBtn = document.getElementById('adminBtn');
+  const chgPwBtn = document.getElementById('chgPwBtn');
+  const userBadge = document.getElementById('userBadge');
+
+  if (currentUser) {
+    loginBtn.style.display = 'none';
+    logoutBtn.style.display = 'inline-block';
+    chgPwBtn.style.display = 'inline-block';
+    userBadge.style.display = 'inline';
+    userBadge.textContent = `${currentUser.username} (${currentUser.role})`;
+    adminBtn.style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
+  } else {
+    loginBtn.style.display = 'inline-block';
+    logoutBtn.style.display = 'none';
+    adminBtn.style.display = 'none';
+    chgPwBtn.style.display = 'none';
+    userBadge.style.display = 'none';
+  }
+}
+
+async function checkAuth() {
+  const token = getToken();
+  if (!token) { updateUserUI(); return; }
+  try {
+    const res = await apiFetch('/auth/me');
+    const data = await res.json();
+    if (data.authenticated) {
+      currentUser = data.user;
+    }
+  } catch(e) {}
+  updateUserUI();
+}
+
+function openLogin() {
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginUser').focus();
+}
+
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!username || !password) {
+    document.getElementById('loginError').textContent = '请输入用户名和密码';
+    return;
+  }
+  try {
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById('loginError').textContent = data.detail || '登录失败';
+      return;
+    }
+    localStorage.setItem(TOKEN_KEY, data.token);
+    currentUser = data.user;
+    document.getElementById('loginOverlay').style.display = 'none';
+    updateUserUI();
+    if (data.user.must_change_password) {
+      openChangePassword(true);
+    }
+  } catch(e) {
+    document.getElementById('loginError').textContent = '网络错误';
+  }
+}
+
+function logout() {
+  const token = getToken();
+  fetch('/auth/logout', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {} })
+    .catch(() => {});
+  localStorage.removeItem(TOKEN_KEY);
+  currentUser = null;
+  updateUserUI();
+}
+
+// ── Change password ──────────────────────────────────────────────────────
+
+function openChangePassword(forced = false) {
+  document.getElementById('chgPwOverlay').style.display = 'flex';
+  document.getElementById('chgPwError').textContent = '';
+  document.getElementById('chgPwOld').value = '';
+  document.getElementById('chgPwNew').value = '';
+  document.getElementById('chgPwConfirm').value = '';
+  document.getElementById('chgPwForced').style.display = forced ? 'block' : 'none';
+  document.getElementById('chgPwCancel').style.display = forced ? 'none' : 'inline-block';
+  document.getElementById('chgPwOld').focus();
+}
+
+function closeChangePassword() {
+  document.getElementById('chgPwOverlay').style.display = 'none';
+}
+
+async function doChangePassword() {
+  const oldPw = document.getElementById('chgPwOld').value;
+  const newPw = document.getElementById('chgPwNew').value;
+  const confirmPw = document.getElementById('chgPwConfirm').value;
+  const errEl = document.getElementById('chgPwError');
+
+  if (!oldPw || !newPw || !confirmPw) {
+    errEl.textContent = '请填写所有字段';
+    return;
+  }
+  if (newPw !== confirmPw) {
+    errEl.textContent = '两次输入的新密码不一致';
+    return;
+  }
+  try {
+    const res = await apiFetch('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ old_password: oldPw, new_password: newPw }),
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      errEl.textContent = d.detail || '修改失败';
+      return;
+    }
+    closeChangePassword();
+    alert('密码修改成功');
+  } catch(e) {
+    errEl.textContent = '网络错误';
+  }
+}
+
+// Enter key on login
+document.getElementById('loginPass').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ── Admin panel ─────────────────────────────────────────────────────────
+
+async function openAdminPanel() {
+  document.getElementById('adminOverlay').style.display = 'flex';
+  await loadUsers();
+}
+
+function closeAdminPanel() {
+  document.getElementById('adminOverlay').style.display = 'none';
+}
+
+async function loadUsers() {
+  try {
+    const res = await apiFetch('/admin/users');
+    const data = await res.json();
+    const tbody = document.getElementById('userTable');
+    tbody.innerHTML = '';
+    data.users.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #334155';
+      tr.innerHTML = `
+        <td style="padding:8px;">${u.id}</td>
+        <td style="padding:8px;">${escapeHtml(u.username)}</td>
+        <td style="padding:8px;"><span class="role-badge role-${u.role}">${u.role}</span></td>
+        <td style="padding:8px;">${u.is_active ? '<span style="color:#22c55e;">活跃</span>' : '<span style="color:#ef4444;">禁用</span>'}</td>
+        <td style="padding:8px;">
+          <select onchange="changeRole(${u.id}, this.value)" style="background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:4px; padding:2px 6px; font-size:12px;">
+            <option value="analyst" ${u.role==='analyst'?'selected':''}>analyst</option>
+            <option value="viewer" ${u.role==='viewer'?'selected':''}>viewer</option>
+            <option value="admin" ${u.role==='admin'?'selected':''}>admin</option>
+          </select>
+          <button onclick="toggleActive(${u.id}, ${!u.is_active})" class="btn-secondary" style="margin-left:4px; padding:2px 8px; font-size:11px;">${u.is_active ? '禁用' : '启用'}</button>
+          <button onclick="deleteUser(${u.id})" class="btn-secondary" style="margin-left:4px; padding:2px 8px; font-size:11px; background:#7f1d1d;">删除</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch(e) { console.error(e); }
+}
+
+async function createUser() {
+  const username = document.getElementById('newUser').value.trim();
+  const password = document.getElementById('newPass').value;
+  const role = document.getElementById('newRole').value;
+  if (!username || !password) { alert('请输入用户名和密码'); return; }
+  try {
+    const res = await apiFetch('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, role }),
+    });
+    if (res.ok) {
+      document.getElementById('newUser').value = '';
+      document.getElementById('newPass').value = '';
+      await loadUsers();
+    } else {
+      const d = await res.json();
+      alert(d.detail || '创建失败');
+    }
+  } catch(e) { alert(e.message); }
+}
+
+async function changeRole(userId, role) {
+  try {
+    await apiFetch(`/admin/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    });
+  } catch(e) { console.error(e); }
+}
+
+async function toggleActive(userId, isActive) {
+  try {
+    await apiFetch(`/admin/users/${userId}/active?is_active=${isActive}`, { method: 'PUT' });
+    await loadUsers();
+  } catch(e) { console.error(e); }
+}
+
+async function deleteUser(userId) {
+  if (!confirm('确定删除该用户？')) return;
+  try {
+    await apiFetch(`/admin/users/${userId}`, { method: 'DELETE' });
+    await loadUsers();
+  } catch(e) { alert(e.message); }
+}
+
+// ── Core app logic ──────────────────────────────────────────────────────
+
+taskInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    startRun();
+  }
+});
+
+function setExample(text) {
+  taskInput.value = text;
+  taskInput.focus();
+}
+
+function clearEvents() {
+  eventsDiv.innerHTML = '';
+}
+
+function addEvent(type, message, data) {
+  const div = document.createElement('div');
+  div.className = `event ${type}`;
+
+  let body = '';
+  if (message) {
+    body += `<div class="event-body">${escapeHtml(message)}</div>`;
+  }
+
+  if (data && data.code) {
+    body += `<pre><code>${escapeHtml(data.code)}</code></pre>`;
+  }
+  if (data && data.result && data.result.stdout) {
+    body += `<pre style="border-left-color:#22c55e;">${escapeHtml(data.result.stdout)}</pre>`;
+  }
+  if (data && data.result && data.result.error) {
+    body += `<pre style="border-left-color:#ef4444;">${escapeHtml(data.result.error)}</pre>`;
+  }
+  if (data && data.plan) {
+    body += renderPlan(data.plan);
+  }
+
+  const label = typeLabels[type] || type;
+  div.innerHTML = `
+    <div class="event-header">
+      <span>${label}</span>
+      <span>${new Date().toLocaleTimeString()}</span>
+    </div>
+    ${body}
+  `;
+  eventsDiv.appendChild(div);
+  eventsDiv.scrollTop = eventsDiv.scrollHeight;
+}
+
+function renderPlan(plan) {
+  if (!plan.steps || plan.steps.length === 0) return '';
+  let html = '<ul class="plan-checklist">';
+  plan.steps.forEach(s => {
+    html += `<li class="${s.completed ? 'done' : ''}">${s.completed ? '✓' : '○'} ${escapeHtml(s.description)}</li>`;
+  });
+  html += '</ul>';
+  return html;
+}
+
+const typeLabels = {
+  'agent_started': '🚀 任务启动',
+  'agent_finished': '✅ 完成',
+  'agent_error': '❌ 错误',
+  'agent_cancelled': '⏹ 已取消',
+  'round_started': '🔄 开始轮次',
+  'round_finished': '🔄 轮次结束',
+  'llm_call_started': '🤖 模型调用',
+  'llm_call_finished': '🤖 模型响应',
+  'thinking': '💭 思考',
+  'plan_updated': '📋 计划更新',
+  'plan_step_completed': '✅ 步骤完成',
+  'code_executing': '⚙️ 执行代码',
+  'code_success': '✅ 代码执行成功',
+  'code_failed': '❌ 代码执行失败',
+  'subagent_started': '👥 子 Agent 启动',
+  'subagent_finished': '👥 子 Agent 完成',
+  'context_pruned': '✂️ 上下文裁剪',
+  'answer_finished': '📝 最终答案',
+  'output_validation_failed': '⚠️ 输出校验未通过',
+};
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+async function startRun() {
+  const task = taskInput.value.trim();
+  if (!task || isRunning) return;
+
+  isRunning = true;
+  sendBtn.disabled = true;
+  cancelBtn.style.display = 'inline-block';
+  clearEvents();
+
+  currentSessionId = currentSessionId || genId();
+  currentRunId = genId();
+
+  try {
+    const token = getToken();
+    const url = `/runs/${currentRunId}/stream?task=${encodeURIComponent(task)}&session_id=${currentSessionId}${token ? '&token=' + encodeURIComponent(token) : ''}`;
+    eventSource = new EventSource(url);
+
+    const handleSSE = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        addEvent(data.type, data.message, data);
+      } catch (err) {
+        console.error('Parse error:', err, e.data);
+      }
+    };
+
+    // Register a listener for every known event type (since all SSE
+    // messages carry an `event:` field, onmessage won't catch them).
+    Object.keys(typeLabels).forEach(type => {
+      eventSource.addEventListener(type, handleSSE);
+    });
+    // Also catch any unknown event types
+    eventSource.onmessage = handleSSE;
+
+    eventSource.addEventListener('agent_finished', () => finishRun());
+    eventSource.addEventListener('agent_error', () => finishRun());
+    eventSource.addEventListener('agent_cancelled', () => finishRun());
+
+    eventSource.onerror = (e) => {
+      if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+        finishRun();
+      }
+    };
+
+  } catch (err) {
+    addEvent('agent_error', '连接失败: ' + err.message);
+    finishRun();
+  }
+}
+
+function finishRun() {
+  isRunning = false;
+  sendBtn.disabled = false;
+  cancelBtn.style.display = 'none';
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+}
+
+function cancelRun() {
+  if (!currentRunId) return;
+  apiFetch(`/runs/${currentRunId}/cancel`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => console.log('Cancel:', d))
+    .catch(e => console.error(e));
+}
+
+function genId() {
+  return Math.random().toString(36).substring(2, 15);
+}
+
+// Load sessions on startup
+async function loadSessions() {
+  try {
+    const res = await apiFetch('/sessions');
+    const data = await res.json();
+    if (data.sessions && data.sessions.length > 0) {
+      sessionList.innerHTML = '';
+      data.sessions.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'session-item';
+        div.innerHTML = `<div class="title">会话 ${s.session_id.substring(0,8)}</div><div class="meta">${s.message_count} 条消息</div>`;
+        div.onclick = () => { currentSessionId = s.session_id; };
+        sessionList.appendChild(div);
+      });
+    }
+  } catch(e) {}
+}
+
+checkAuth();
+loadSessions();
+</script>
+
+</body>
+</html>

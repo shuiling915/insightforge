@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  insightforge:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      - INSIGHTFORGE_MODEL=${INSIGHTFORGE_MODEL:-gpt-4o}
+      - INSIGHTFORGE_API_KEY=${INSIGHTFORGE_API_KEY}
+      - INSIGHTFORGE_API_BASE=${INSIGHTFORGE_API_BASE:-}
+      - INSIGHTFORGE_EXECUTOR_BACKEND=docker
+      - INSIGHTFORGE_DOCKER_IMAGE=insightforge/sandbox:latest
+      - INSIGHTFORGE_REQUIRE_API_KEY=${INSIGHTFORGE_REQUIRE_API_KEY:-false}
+      - INSIGHTFORGE_API_KEY=${INSIGHTFORGE_API_KEY:-}
+    volumes:
+      - ./workspace:/app/workspace
+      - ./sessions.db:/app/sessions.db
+      # Mount docker socket so the server can spawn sandbox containers
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - sandbox-builder
+
+  sandbox-builder:
+    image: docker:24-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./Dockerfile.sandbox:/Dockerfile.sandbox:ro
+    command: >
+      sh -c "docker build -t insightforge/sandbox:latest -f /Dockerfile.sandbox / && tail -f /dev/null"
+    restart: "no"
