@@ -180,9 +180,9 @@ def require_admin(user: Optional[User] = Depends(get_current_user)) -> User:
     return user
 
 
-def require_analyst(user: Optional[User] = Depends(get_current_user)) -> Optional[User]:
+def require_analyst(user: Optional[User] = Depends(get_current_user)) -> User:
     if user is None:
-        return None
+        raise HTTPException(status_code=401, detail="Authentication required")
     if not AuthService.can_run_analysis(user):
         raise HTTPException(status_code=403, detail="Insufficient permissions to run analysis")
     return user
@@ -423,7 +423,7 @@ def create_run(
     return RunResponse(run_id=run_id, session_id=session_id, status="started")
 
 
-@app.post("/runs/{run_id}/cancel")
+@app.post("/runs/{run_id}/cancel", dependencies=[Depends(require_analyst)])
 def cancel_run(run_id: str, request: Request):
     registry: RunRegistry = request.app.state.run_registry
     if registry.cancel(run_id):
@@ -550,7 +550,7 @@ def stream_run(
     )
 
 
-@app.get("/sessions")
+@app.get("/sessions", dependencies=[Depends(require_analyst)])
 def list_sessions(request: Request):
     session_manager: SessionManager = request.app.state.session_manager
     sessions = session_manager.store.list_sessions()
@@ -573,7 +573,7 @@ def list_sessions(request: Request):
     return result
 
 
-@app.get("/sessions/{session_id}")
+@app.get("/sessions/{session_id}", dependencies=[Depends(require_analyst)])
 def get_session(session_id: str, request: Request):
     session_manager: SessionManager = request.app.state.session_manager
     store = session_manager.store
@@ -589,7 +589,7 @@ def get_session(session_id: str, request: Request):
     }
 
 
-@app.delete("/sessions/{session_id}")
+@app.delete("/sessions/{session_id}", dependencies=[Depends(require_analyst)])
 def delete_session(session_id: str, request: Request):
     session_manager: SessionManager = request.app.state.session_manager
     session_manager.shutdown_session(session_id)
