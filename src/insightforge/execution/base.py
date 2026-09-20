@@ -23,6 +23,7 @@ class ExecutorConfig:
         memory_limit: Optional[str] = None,
         cpu_limit: Optional[float] = None,
         network: str = "none",
+        prelude: str = "",
     ) -> None:
         self.workspace = Path(workspace).resolve()
         self.timeout = timeout
@@ -30,6 +31,10 @@ class ExecutorConfig:
         self.memory_limit = memory_limit
         self.cpu_limit = cpu_limit
         self.network = network
+        # Python source prepended to every execution (or injected once at
+        # kernel start for persistent backends).  Used to make built-in tools
+        # such as describe_table / find_metrics available to agent code.
+        self.prelude = prelude
 
 
 class ExecutorBackend(ABC):

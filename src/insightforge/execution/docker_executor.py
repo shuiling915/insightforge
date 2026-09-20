@@ -130,6 +130,12 @@ class DockerExecutor(ExecutorBackend):
         else:
             raise RuntimeError("Sandbox kernel did not become ready within 60s")
 
+        # Write the tool prelude once to the writable /scratch volume so every
+        # execution can import it cheaply instead of re-parsing 100+ KB inline.
+        if self.config.prelude:
+            prelude_path = self.config.workspace.parent / f"{self.config.workspace.name}_scratch" / "_prelude.py"
+            prelude_path.write_text(self.config.prelude, encoding="utf-8")
+
         self._started = True
 
     def execute(self, code: str) -> ExecutionResult:
@@ -139,14 +145,20 @@ class DockerExecutor(ExecutorBackend):
         result = ExecutionResult()
         start = time.time()
 
-        # Wrap user code with output capture and image extraction
+        # Wrap user code with output capture and image extraction.
+        # The tool prelude is written to /scratch/_prelude.py once at start.
+        prelude_import = ""
+        if self.config.prelude:
+            prelude_import = "exec(open('/scratch/_prelude.py').read())\n"
+
         wrapped = (
             "import sys, io, base64, json\n"
             "_buf_out, _buf_err = io.StringIO(), io.StringIO()\n"
             "_old_out, _old_err = sys.stdout, sys.stderr\n"
             "sys.stdout, sys.stderr = _buf_out, _buf_err\n"
             "_imgs = []\n"
-            "try:\n"
+            + prelude_import
+            + "try:\n"
             f"{_indent(code, 1)}\n"
             "    import matplotlib.pyplot as plt\n"
             "    for _fig_num in plt.get_fignums():\n"

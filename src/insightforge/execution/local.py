@@ -41,6 +41,9 @@ class LocalExecutor(ExecutorBackend):
             "import matplotlib; matplotlib.use('Agg')\n"
             "import matplotlib.pyplot as plt; plt.ioff()\n"
         )
+        # Inject built-in tool functions (describe_table, find_metrics, ...)
+        if self.config.prelude:
+            self._execute_silent(self.config.prelude)
         self._started = True
 
     def _drain(self) -> None:

@@ -219,3 +219,58 @@ class CodeSafetyChecker:
         if isinstance(current, ast.Name):
             return current.id
         return ""
+
+
+_SQL_SELECT_RE = re.compile(
+    r"""(?:execute|read_sql|executescript)\s*\(\s*[\"'](.*?)[\"']""",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+@dataclass
+class QualityIssue:
+    level: str
+    message: str
+
+
+@dataclass
+class QualityReport:
+    issues: List[QualityIssue]
+
+    @property
+    def has_errors(self) -> bool:
+        return any(i.level == "error" for i in self.issues)
+
+    @property
+    def message(self) -> str:
+        if not self.issues:
+            return "OK"
+        lines = [f"[{i.level}] {i.message}" for i in self.issues]
+        return "Code review:\n" + "\n".join(lines)
+
+
+class CodeQualityChecker:
+    def __init__(self, max_result_rows: int = 1000) -> None:
+        self.max_result_rows = max_result_rows
+
+    def check(self, code: str) -> QualityReport:
+        issues: List[QualityIssue] = []
+        try:
+            ast.parse(code)
+        except SyntaxError as e:
+            issues.append(QualityIssue("error", f"Syntax error: {e.msg} (line {e.lineno})"))
+            return QualityReport(issues)
+
+        for sql in [m.group(1) for m in _SQL_SELECT_RE.finditer(code)]:
+            s = sql.strip()
+            if not re.match(r"^\s*SELECT\b", s, re.IGNORECASE):
+                continue
+            if not re.search(r"\bLIMIT\s+\d+", s, re.IGNORECASE):
+                issues.append(QualityIssue("warning", f"SELECT has no LIMIT — add LIMIT {self.max_result_rows}."))
+            if re.search(r"\bSELECT\s+\*", s, re.IGNORECASE):
+                issues.append(QualityIssue("warning", "SELECT * returns all columns; specify columns you need."))
+
+        if "sqlite3.connect" in code and ".close()" not in code:
+            issues.append(QualityIssue("warning", "sqlite3 connection not closed — call conn.close()."))
+
+        return QualityReport(issues)

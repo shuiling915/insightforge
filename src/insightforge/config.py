@@ -45,6 +45,25 @@ class Settings(BaseSettings):
     docker_cpu_limit: float = Field(default=1.0)
     docker_network: str = Field(default="none")
 
+    # ── Session lifecycle ──────────────────────────────────────────────────
+    session_ttl_seconds: int = Field(
+        default=1800,
+        ge=60,
+        description="Idle TTL for session executors; expired sessions are auto-shut down.",
+    )
+    session_cleanup_interval_seconds: int = Field(
+        default=300,
+        ge=30,
+        description="How often the background cleanup thread scans for expired sessions.",
+    )
+
+    # ── Code quality guardrails ────────────────────────────────────────────
+    max_result_rows: int = Field(
+        default=1000,
+        ge=10,
+        description="Warn when a SELECT has no LIMIT above this row count.",
+    )
+
     # ── Storage ────────────────────────────────────────────────────────────
     workspace: str = Field(default="./workspace")
     session_backend: str = Field(default="sqlite")
@@ -82,6 +101,17 @@ class Settings(BaseSettings):
         default=6,
         ge=1,
         description="Number of recent rounds to keep intact when pruning context.",
+    )
+    context_retrieve_top_k: int = Field(
+        default=4,
+        ge=0,
+        description="Number of semantically relevant old rounds to retrieve when pruning.",
+    )
+    context_similarity_threshold: float = Field(
+        default=0.15,
+        ge=0.0,
+        le=1.0,
+        description="Minimum Jaccard similarity for an old round to be retrieved.",
     )
 
     # ── Observability ──────────────────────────────────────────────────────

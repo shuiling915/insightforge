@@ -212,8 +212,9 @@ class AgentAction(BaseModel):
     delegate: Optional[dict] = Field(
         default=None,
         description=(
-            "Delegate a subtask to a specialist sub-agent. "
-            'Format: {"role": "statistician|visualizer|data_cleaner|researcher", "task": "..."}'
+            "Delegate a subtask to a specialist agent. "
+            'Format: {"role": "schema_explorer|data_engineer|analyst|visualizer", '
+            '"task": "..."}'
         ),
     )
     final_answer: Optional[str] = Field(

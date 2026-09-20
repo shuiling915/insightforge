@@ -478,11 +478,15 @@ def stream_run(
 
         # 2. Run the agent live
         executor = session_manager.get_or_create_executor(effective_session)
+        schema_registry = session_manager.get_schema_registry(effective_session)
+        metric_registry = session_manager.get_metric_registry(effective_session)
         agent = DataAnalysisAgent(
             settings=run_settings,
             executor=executor,
             store=store,
             cancel_event=cancel_event,
+            schema_registry=schema_registry,
+            metric_registry=metric_registry,
         )
         # Override run_id so replay and live events share the same ID
         agent.run_id = run_id
@@ -494,6 +498,8 @@ def stream_run(
             for event in agent.run_stream(task):
                 yield event.to_sse()
                 last_emit = time.time()
+                # Keep the session alive during long-running agent loops
+                session_manager.touch(effective_session)
         except Exception as e:
             logger.exception("Run failed")
             err_event = AgentEvent(

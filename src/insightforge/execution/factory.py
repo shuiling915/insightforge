@@ -6,7 +6,7 @@ from insightforge.config import Settings
 from insightforge.execution.base import ExecutorBackend, ExecutorConfig
 
 
-def create_executor(settings: Settings, workspace: str) -> ExecutorBackend:
+def create_executor(settings: Settings, workspace: str, prelude: str = "") -> ExecutorBackend:
     """Create an executor backend based on settings.executor_backend."""
     config = ExecutorConfig(
         workspace=workspace,
@@ -15,6 +15,7 @@ def create_executor(settings: Settings, workspace: str) -> ExecutorBackend:
         memory_limit=settings.docker_memory_limit,
         cpu_limit=settings.docker_cpu_limit,
         network=settings.docker_network,
+        prelude=prelude,
     )
 
     backend = settings.executor_backend.lower()
