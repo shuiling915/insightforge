@@ -78,10 +78,28 @@ class DataAnalysisAgent:
     def run_stream(self, task: str) -> Generator[AgentEvent, None, None]:
         yield self._emit(EventType.AGENT_STARTED, f"Starting: {task}")
 
-        self.messages = [
-            {"role": "system", "content": build_system_prompt()},
-            {"role": "user", "content": f"Task: {task}"},
-        ]
+        history_messages: List[dict] = []
+        if self.store is not None and self.session_id:
+            try:
+                session_state = self.store.load(self.session_id)
+                if session_state is not None and session_state.messages:
+                    history_messages = session_state.messages
+                    logger.info(
+                        "Loaded %d historical messages for session %s",
+                        len(history_messages),
+                        self.session_id,
+                    )
+            except Exception:
+                logger.exception("Failed to load session history for %s", self.session_id)
+
+        if history_messages:
+            self.messages = list(history_messages)
+            self.messages.append({"role": "user", "content": f"Task: {task}"})
+        else:
+            self.messages = [
+                {"role": "system", "content": build_system_prompt()},
+                {"role": "user", "content": f"Task: {task}"},
+            ]
         self.round_num = 0
         self.answer = None
 
