@@ -405,14 +405,20 @@ def create_run(
 
     from datetime import datetime
 
-    state = SessionState(
-        session_id=session_id,
-        model=req.model or settings.model,
-        messages=[{"role": "user", "content": req.task}],
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-    )
-    session_manager.store.save(state)
+    existing = session_manager.store.load(session_id)
+    if existing is not None:
+        existing.updated_at = datetime.now()
+        existing.model = req.model or existing.model
+        session_manager.store.save(existing)
+    else:
+        state = SessionState(
+            session_id=session_id,
+            model=req.model or settings.model,
+            messages=[],
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        session_manager.store.save(state)
 
     return RunResponse(run_id=run_id, session_id=session_id, status="started")
 
