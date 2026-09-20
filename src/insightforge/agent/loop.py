@@ -65,6 +65,8 @@ class DataAnalysisAgent:
         self.session_id = ""
         self._token_estimate = 0
         self._cancelled = False
+        self._answer_rejections = 0
+        self._max_answer_rejections = 2
 
     # ── public API ──────────────────────────────────────────────────────────
 
@@ -129,7 +131,17 @@ class DataAnalysisAgent:
             if action.thinking:
                 yield self._emit(EventType.THINKING, action.thinking)
             if action.plan_update:
-                self.plan = self._parse_plan(action.plan_update)
+                new_plan = self._parse_plan(action.plan_update)
+                if self.plan:
+                    completed_descs = {
+                        s.description.strip().lower()
+                        for s in self.plan.steps
+                        if s.completed
+                    }
+                    for step in new_plan.steps:
+                        if step.description.strip().lower() in completed_descs:
+                            step.mark_complete()
+                self.plan = new_plan
                 yield self._emit(EventType.PLAN_UPDATED, plan=self.plan)
 
             # 3. Check for final answer
@@ -277,9 +289,21 @@ class DataAnalysisAgent:
     def _should_reject_answer(self) -> bool:
         if not self.plan:
             return False
+        if self._answer_rejections >= self._max_answer_rejections:
+            logger.warning(
+                "Allowing final answer after %d rejections (plan may be incomplete)",
+                self._answer_rejections,
+            )
+            return False
         pending = [s for s in self.plan.steps if not s.completed]
         if pending:
-            logger.warning("Rejecting early answer: %d steps pending", len(pending))
+            self._answer_rejections += 1
+            logger.warning(
+                "Rejecting early answer (%d/%d): %d steps pending",
+                self._answer_rejections,
+                self._max_answer_rejections,
+                len(pending),
+            )
             return True
         return False
 
@@ -302,6 +326,10 @@ class DataAnalysisAgent:
                 steps.append(PlanStep(number=len(steps) + 1, description=m.group(2), completed=completed))
                 continue
             m = re.match(r"^\d+\.\s+(.+)$", line)
+            if m:
+                steps.append(PlanStep(number=len(steps) + 1, description=m.group(1)))
+                continue
+            m = re.match(r"^[-*]\s+(.+)$", line)
             if m:
                 steps.append(PlanStep(number=len(steps) + 1, description=m.group(1)))
         return PlanState(steps=steps, raw_text=text)
